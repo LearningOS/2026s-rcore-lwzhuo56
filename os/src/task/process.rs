@@ -49,6 +49,10 @@ pub struct ProcessControlBlockInner {
     pub semaphore_list: Vec<Option<Arc<Semaphore>>>,
     /// condvar list
     pub condvar_list: Vec<Option<Arc<Condvar>>>,
+    /// scheduling priority
+    pub priority: isize,
+    /// whether wait-for cycle detection is enabled
+    pub deadlock_detect_enabled: bool,
 }
 
 impl ProcessControlBlockInner {
@@ -119,6 +123,8 @@ impl ProcessControlBlock {
                     mutex_list: Vec::new(),
                     semaphore_list: Vec::new(),
                     condvar_list: Vec::new(),
+                    priority: 16,
+                    deadlock_detect_enabled: false,
                 })
             },
         });
@@ -245,6 +251,8 @@ impl ProcessControlBlock {
                     mutex_list: Vec::new(),
                     semaphore_list: Vec::new(),
                     condvar_list: Vec::new(),
+                    priority: parent.priority,
+                    deadlock_detect_enabled: false,
                 })
             },
         });
@@ -281,5 +289,21 @@ impl ProcessControlBlock {
     /// get pid
     pub fn getpid(&self) -> usize {
         self.pid.0
+    }
+
+    /// Return the process scheduling priority.
+    pub fn get_priority(&self) -> isize {
+        self.inner_exclusive_access().priority
+    }
+
+    /// Update priority and return the previous valid value.
+    pub fn set_priority(&self, priority: isize) -> isize {
+        if priority < 2 {
+            return -1;
+        }
+        let mut inner = self.inner_exclusive_access();
+        let old = inner.priority;
+        inner.priority = priority;
+        old
     }
 }
