@@ -21,6 +21,8 @@ use alloc::vec::Vec;
 use lazy_static::*;
 use switch::__switch;
 pub use task::{TaskControlBlock, TaskStatus};
+/// Maximum syscall id tracked for each task.
+pub const MAX_SYSCALL_NUM: usize = 512;
 
 pub use context::TaskContext;
 
@@ -153,6 +155,33 @@ impl TaskManager {
             panic!("All applications completed!");
         }
     }
+
+    fn increase_syscall_count(&self, syscall_id: usize) -> usize {
+        let mut inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        inner.tasks[current].syscall_counts[syscall_id] += 1;
+        inner.tasks[current].syscall_counts[syscall_id]
+    }
+
+    fn get_syscall_count(&self, syscall_id: usize) -> usize {
+        let inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        inner.tasks[current].syscall_counts[syscall_id]
+    }
+
+    fn mmap_current(&self, start: usize, len: usize, prot: usize) -> isize {
+        let mut inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        inner.tasks[current]
+            .memory_set
+            .mmap(start.into(), len, prot)
+    }
+
+    fn munmap_current(&self, start: usize, len: usize) -> isize {
+        let mut inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        inner.tasks[current].memory_set.munmap(start.into(), len)
+    }
 }
 
 /// Run the first task in task list.
@@ -201,4 +230,24 @@ pub fn current_trap_cx() -> &'static mut TrapContext {
 /// Change the current 'Running' task's program break
 pub fn change_program_brk(size: i32) -> Option<usize> {
     TASK_MANAGER.change_current_program_brk(size)
+}
+
+/// Increment the current task's counter for one syscall.
+pub fn increase_syscall_count(syscall_id: usize) -> usize {
+    TASK_MANAGER.increase_syscall_count(syscall_id)
+}
+
+/// Read the current task's counter for one syscall.
+pub fn get_syscall_count(syscall_id: usize) -> usize {
+    TASK_MANAGER.get_syscall_count(syscall_id)
+}
+
+/// Map memory for the current task.
+pub fn mmap_current(start: usize, len: usize, prot: usize) -> isize {
+    TASK_MANAGER.mmap_current(start, len, prot)
+}
+
+/// Unmap memory for the current task.
+pub fn munmap_current(start: usize, len: usize) -> isize {
+    TASK_MANAGER.munmap_current(start, len)
 }
